@@ -416,7 +416,10 @@ const CA = (() => {
     const tiers = [];
     cfg.liveOpsPacks.forEach((n, t) => { for (let k = 0; k < n; k++) tiers.push(t + 1); });
     for (let i = tiers.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [tiers[i], tiers[j]] = [tiers[j], tiers[i]]; }
-    const days = spreadDays(tiers.length, cfg.durationDays, 0);
+    // Start Event Pack delivery after the fresh album has begun.
+    // Day index 0 is reserved for a clean reset/start state (0 Event Packs received).
+    const days = spreadDays(tiers.length, cfg.durationDays, 0)
+      .map(d => Math.min(cfg.durationDays - 1, d + 1));
     return tiers.map((tier, k) => ({ tier, day: days[k] }));
   }
 
@@ -983,12 +986,14 @@ function cardHTML(c, owned, dup) {
     G.energy += daily; G.day = d + 1;
     if (!first) toast(`Day ${G.day} · +${fmt(daily)} Energy`);
     log(`Day ${G.day} began.`);
-    const todayEvents = G.live.filter(x => x.day === d);
-    for (const it of todayEvents) {
-      G.eventPacks++;
-      G.stats.src.live++;
-      givePack({ tier: it.tier, kind: 'standard' }, 'Event reward');
-      log(`Event reward → ${CA.PACK_NAMES[it.tier - 1]} pack.`);
+    if (!first) {
+      const todayEvents = G.live.filter(x => x.day === d);
+      for (const it of todayEvents) {
+        G.eventPacks++;
+        G.stats.src.live++;
+        givePack({ tier: it.tier, kind: 'standard' }, 'Event reward');
+        log(`Event reward → ${CA.PACK_NAMES[it.tier - 1]} pack.`);
+      }
     }
     G.jokerDays.forEach(x => { if (x === d) { G.jokers.push({ id: ++G.jokerSeq, exp: d + c.jokerDays }); toast('You got a Joker! Use it on the Album tab'); log('Joker received (use it on the Album tab before the day ends).'); } });
     return true;
@@ -1004,7 +1009,12 @@ function cardHTML(c, owned, dup) {
   }
   function takeEnergy() {
     const g = G.st.energyGain;
-    if (g) { if (G.c.reinvestEnergy) G.energy += g; G.st.energyGain = 0; }
+    if (g) {
+      // In the playable prototype, reward Energy is granted directly
+      // to the player's current Energy balance immediately.
+      G.energy += g;
+      G.st.energyGain = 0;
+    }
   }
 
   /* ---------------- packs ---------------- */
