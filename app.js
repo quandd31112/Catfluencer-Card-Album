@@ -1,5 +1,5 @@
 /* ===== Script 1: engine (spec values in CA.defaults, game rules) ===== */
-/* Card Album engine: rules from KAN-170 (10.5.26 revision) plus labeled assumptions. */
+/* Card Album engine: rules from KAN-170 (10.14.26 tuning revision) plus labeled assumptions. */
 const CA = (() => {
   const SET_NAMES = [
     "Activities", "Cat Essentials", "Outdoor Activities", "Cat Care", "Special Moments", "Cat Memes", "Viral Moments", "Cat Fans", "Work", "Weekend Picnic", "Menu", "Travels", "Fashion", "Superstar", "Dream life"
@@ -33,12 +33,12 @@ const CA = (() => {
         { cards: 2, odds: [92,8,0,0,0] },
         { cards: 3, odds: [80,20,0,0,0] },
         { cards: 3, odds: [82,18,0,0,0] },
-        { cards: 4, odds: [45,40,15,0,0] },
-        { cards: 4, odds: [42,12,17,29,0] }
+        { cards: 4, odds: [40,38,15,7,0] },
+        { cards: 4, odds: [37,12,17,29,5] }
       ],
       largeExtraCards: 2,          // ASSUMPTION: Large packs not sized in spec
       pityOn: true,
-      pity: [9,27,4,3,1],
+      pity: [8,24,3,2,1],
       starCosts: [100,200,400],
       starBoxPack: [3,4,5],
       starBoxEnergy: [0,50,100],
@@ -51,32 +51,32 @@ const CA = (() => {
       jokerMaxRarity: 5,           // ASSUMPTION: Joker eligibility
       jokerDays: 1,                // 24-hour timer
       profiles: [
-        { name: 'Low', energy: 100 },
-        { name: 'Medium', energy: 300 },
-        { name: 'High', energy: 500 }
+        { name: 'Low', energy: 200 },
+        { name: 'Medium', energy: 700 },
+        { name: 'High', energy: 1500 }
       ],
       orderModel: 'formula',       // 'formula' = KAN-170 Order → Card Pack Award Formula | 'flat' = GH log rates
       // KAN-170 Order → Card Pack Award Formula, keyed to total Order Energy.
       // share = ASSUMPTION: how often Orders of each size come up (avg ≈ 87 Energy, near the GH log's 85.3).
       orderBands: [
         { lo: 1,   hi: 31,   share: 30,  chance: 0,   mix: [0,0,0,0,0] },
-        { lo: 32,  hi: 63,   share: 28,  chance: 15,  mix: [75,25,0,0,0] },
-        { lo: 64,  hi: 127,  share: 25,  chance: 15,  mix: [60,30,10,0,0] },
-        { lo: 128, hi: 255,  share: 12,  chance: 70,  mix: [85,10,5,0,0] },
-        { lo: 256, hi: 511,  share: 4,   chance: 95,  mix: [0,55,35,10,0] },
-        { lo: 512, hi: 767,  share: 0.8, chance: 100, mix: [0,0,70,25,5] },
-        { lo: 768, hi: 1000, share: 0.2, chance: 100, mix: [0,0,40,45,15] }
+        { lo: 32,  hi: 63,   share: 28,  chance: 20,  mix: [70,25,5,0,0] },
+        { lo: 64,  hi: 127,  share: 25,  chance: 35,  mix: [55,30,15,0,0] },
+        { lo: 128, hi: 255,  share: 12,  chance: 90,  mix: [70,20,10,0,0] },
+        { lo: 256, hi: 511,  share: 4,   chance: 100, mix: [0,45,35,20,0] },
+        { lo: 512, hi: 767,  share: 0.8, chance: 100, mix: [0,0,55,35,10] },
+        { lo: 768, hi: 1000, share: 0.2, chance: 100, mix: [0,0,0,70,30] }
       ],
       avgOrderEnergy: 85.3,                    // flat model only
       orderPackRate: [15.3, 5.1, 6.0, 0, 0],  // flat model only: % of Orders awarding each tier (GH log, L8–32)
-      liveOpsPacks: [12,10,9,6,3],            // ASSUMPTION: tier mix of the ~40 F2P live-ops packs
+      liveOpsPacks: [16,18,18,17,11],         // PROPOSED: 80 Event Packs / 40 days
       reinvestEnergy: true,
       paidPacksPerWeek: 0,
       paidPackTier: 5,
       starStrategy: 'save',        // 'save' for Box 3 | 'asap' biggest affordable
       topUpTier: 5,
       topUpCap: 400,
-      players: 1000,
+      players: 10000,
       seed: 170,
       // Catfluencer Life Album is built directly into the default configuration.
       albumDef: {"name":"Card Album","sets":[{"name":"Activities","reward":100,"cards":[{"name":"Sleeping","r":1,"dazz":false},{"name":"Watching by the Window","r":1,"dazz":false},{"name":"Sitting in a Cardboard Box","r":1,"dazz":false},{"name":"Playing with a Ball of Yarn","r":1,"dazz":false},{"name":"Climbing the Cat Tower","r":1,"dazz":false},{"name":"Walking Around Someone’s Legs","r":1,"dazz":false},{"name":"Playing with a Cat Wand","r":1,"dazz":false},{"name":"Scratching","r":1,"dazz":false},{"name":"Chasing a Laser Pointer","r":2,"dazz":false}]},{"name":"Cat Essentials","reward":100,"cards":[{"name":"Cardboard Box","r":1,"dazz":false},{"name":"Food Pouches and Treat Soup","r":1,"dazz":false},{"name":"Cat Wand","r":1,"dazz":false},{"name":"Scratching Board","r":1,"dazz":false},{"name":"Cat Cushion","r":1,"dazz":false},{"name":"Yarn Ball Toy","r":1,"dazz":false},{"name":"Collar","r":1,"dazz":false},{"name":"Cat Tree","r":2,"dazz":false},{"name":"Grooming Brush","r":2,"dazz":false}]},{"name":"Outdoor Activities","reward":150,"cards":[{"name":"Cat and Flowers","r":1,"dazz":false},{"name":"Chasing Insects","r":1,"dazz":false},{"name":"Garden Corner","r":1,"dazz":false},{"name":"Cat Watching a Bird in a Tree","r":1,"dazz":false},{"name":"Squirrel Watching the Cat from Above","r":1,"dazz":false},{"name":"Garden Gnome","r":1,"dazz":false},{"name":"Gardening Tools","r":2,"dazz":false},{"name":"Garden Hose","r":2,"dazz":false},{"name":"Cat Lying on the Grass","r":2,"dazz":false}]},{"name":"Cat Care","reward":150,"cards":[{"name":"Petting","r":1,"dazz":false},{"name":"Spa Day","r":1,"dazz":false},{"name":"Hiding in the Carrier at the Vet","r":1,"dazz":false},{"name":"Brushing","r":1,"dazz":false},{"name":"Nail Trimming","r":1,"dazz":false},{"name":"Blow-Drying","r":2,"dazz":false},{"name":"Vet Visit","r":2,"dazz":false},{"name":"Tooth Brushing","r":2,"dazz":false},{"name":"Bath Time","r":3,"dazz":false}]},{"name":"Special Moments","reward":150,"cards":[{"name":"Early Morning","r":1,"dazz":false},{"name":"Midday Sun Through the Window","r":1,"dazz":false},{"name":"Nighttime","r":1,"dazz":false},{"name":"Quiet Time Before Bed","r":1,"dazz":false},{"name":"Lunar New Year","r":2,"dazz":false},{"name":"Thanksgiving","r":2,"dazz":false},{"name":"Easter","r":2,"dazz":false},{"name":"Family Time","r":2,"dazz":false},{"name":"Christmas","r":3,"dazz":false}]},{"name":"Cat Memes","reward":200,"cards":[{"name":"Tasty Milk (https://i.pinimg.com/1200x/3f/51/e1/3f51e1ad6ec7d713e382fdd78fca13cf.jpg)","r":1,"dazz":false},{"name":"Banana Cat","r":1,"dazz":false},{"name":"Side Eye(https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTUXcUGQBx0YDNwEv_A1FhZAmeUeddPBgYEZGDqBO2IqtMTjb1E2JaRI3DY&s=10)","r":1,"dazz":false},{"name":"Something’s Not Right(https://content.imageresizer.com/images/memes/War-Cat-meme-88f6yf.jpg)","r":2,"dazz":false},{"name":"Behind the Cuteness (https://i.pinimg.com/736x/65/13/0f/65130ff0e3e7d3890d89398c84f5e475.jpg)","r":2,"dazz":false},{"name":"Oh No! (https://i.pinimg.com/1200x/bb/43/06/bb43063fbba89253faa513facae9ed0c.jpg)","r":2,"dazz":false},{"name":"ZIP ZIP ZIP(https://i.pinimg.com/736x/59/5d/df/595ddfa295e0239b9a6e76d7133ee56f.jpg)","r":3,"dazz":true},{"name":"Bread Cat (https://www.pinterest.com/pin/624100460875856554/)","r":3,"dazz":false},{"name":"Paw Cookie (https://www.pinterest.com/pin/118782508917691776/)","r":3,"dazz":false}]},{"name":"Viral Moments","reward":200,"cards":[{"name":"Cute Outfit","r":1,"dazz":false},{"name":"Riding in a Bicycle Basket","r":1,"dazz":false},{"name":"Sitting on a Shoulder","r":2,"dazz":false},{"name":"Going for a Ride (https://www.instagram.com/spongecake_thescottishfold/reel/Dc1Ehv8Ovqk/)","r":2,"dazz":false},{"name":"On the Train","r":2,"dazz":false},{"name":"Going for a Walk","r":3,"dazz":false},{"name":"Wearing a Funny Hat","r":3,"dazz":false},{"name":"Sitting on the Desk","r":3,"dazz":false},{"name":"Riding in a Stroller","r":3,"dazz":true}]},{"name":"Cat Fans","reward":200,"cards":[{"name":"First Like","r":1,"dazz":false},{"name":"First Follower","r":2,"dazz":false},{"name":"Fan Group","r":2,"dazz":false},{"name":"100K Followers","r":2,"dazz":false},{"name":"First Fan Art","r":3,"dazz":false},{"name":"Fan Gift","r":3,"dazz":false},{"name":"One Million Followers","r":3,"dazz":false},{"name":"Fan Holding a Cat Sign","r":3,"dazz":false},{"name":"Recognized in Public","r":4,"dazz":false}]},{"name":"Work","reward":250,"cards":[{"name":"Front Side Restaurant","r":1,"dazz":false},{"name":"Menu","r":2,"dazz":false},{"name":"Customer Visits","r":2,"dazz":false},{"name":"Receipt Printer","r":2,"dazz":false},{"name":"Whisking Eggs","r":3,"dazz":false},{"name":"Coffee Machine","r":3,"dazz":true},{"name":"Cleaning Up","r":3,"dazz":false},{"name":"Rush Hour","r":3,"dazz":false},{"name":"Dough","r":4,"dazz":true}]},{"name":"Weekend Picnic","reward":250,"cards":[{"name":"Park","r":2,"dazz":false},{"name":"Shady Tree","r":3,"dazz":false},{"name":"Sun Hat","r":3,"dazz":false},{"name":"People Walking By","r":3,"dazz":true},{"name":"Picnic Basket","r":4,"dazz":false},{"name":"Blue Sky","r":4,"dazz":false},{"name":"Cat Lying on the Blanket","r":4,"dazz":false},{"name":"Cake on the Blanket","r":4,"dazz":true},{"name":"Picnic Blanket","r":5,"dazz":false}]},{"name":"Menu","reward":300,"cards":[{"name":"Cake","r":2,"dazz":false},{"name":"Coffee","r":3,"dazz":false},{"name":"Cat Toy","r":3,"dazz":false},{"name":"Ice Cream","r":3,"dazz":false},{"name":"Donut","r":4,"dazz":false},{"name":"Biscotti","r":4,"dazz":false},{"name":"Tea Time Final Output","r":4,"dazz":false},{"name":"Sponsor Gifts","r":5,"dazz":true},{"name":"Tea Time Intermediate","r":5,"dazz":false}]},{"name":"Travels","reward":300,"cards":[{"name":"World Map","r":2,"dazz":false},{"name":"Plane Ticket","r":3,"dazz":false},{"name":"Airport","r":3,"dazz":false},{"name":"On the Plane","r":4,"dazz":true},{"name":"Dining at a Restaurant","r":4,"dazz":false},{"name":"Exploring England","r":4,"dazz":false},{"name":"Exploring Italy","r":5,"dazz":true},{"name":"Exploring the USA","r":5,"dazz":false},{"name":"Exploring France","r":5,"dazz":true}]},{"name":"Fashion","reward":350,"cards":[{"name":"Wardrobe","r":2,"dazz":false},{"name":"Fashion Collar","r":3,"dazz":true},{"name":"Paw Covers","r":4,"dazz":false},{"name":"Scarf","r":4,"dazz":false},{"name":"Sunglasses","r":4,"dazz":false},{"name":"Bow Tie","r":4,"dazz":true},{"name":"Hat","r":5,"dazz":false},{"name":"Coat","r":5,"dazz":false},{"name":"Outfit","r":5,"dazz":true}]},{"name":"Superstar","reward":400,"cards":[{"name":"Magazine Cover","r":3,"dazz":false},{"name":"Brand Collaboration","r":4,"dazz":false},{"name":"Rounded Photo Card","r":4,"dazz":false},{"name":"Most-Liked Social Post","r":4,"dazz":false},{"name":"Creator Award","r":4,"dazz":true},{"name":"Giant Billboard","r":5,"dazz":true},{"name":"Major Fan Meeting","r":5,"dazz":false},{"name":"Celebrity Collaboration","r":5,"dazz":true},{"name":"Over One Million Followers","r":5,"dazz":false}]},{"name":"Dream life","reward":500,"cards":[{"name":"Dream Home","r":3,"dazz":false},{"name":"Luxury Furniture","r":4,"dazz":false},{"name":"Private Garden","r":4,"dazz":false},{"name":"Personal Snack Cabinet","r":4,"dazz":true},{"name":"Breakfast in Style","r":5,"dazz":false},{"name":"Rooftop Pool","r":5,"dazz":false},{"name":"Private Studio","r":5,"dazz":false},{"name":"Room Full of Toys","r":5,"dazz":true},{"name":"Giant Bed","r":5,"dazz":true}]}]}
@@ -736,7 +736,7 @@ if (typeof module !== 'undefined') module.exports = CA;
         <fieldset><legend>Album</legend><div class="fields">
           <label class="field"><span>Album name</span>${txt('albumDef.name', ad.name || 'Card Album', 'style="width:200px"')}</label>
           <label class="field"><span>Album length (days)</span>${num('durationDays', d.durationDays, 'min="1" max="120"')}</label>
-          <label class="field"><span>Energy per day (prototype)</span>${num('profiles.1.energy', d.profiles[1].energy, 'min="0" step="25"')}</label>
+          <label class="field"><span>Energy per day (prototype)</span>${num('profiles.2.energy', d.profiles[2].energy, 'min="0" step="25"')}</label>
           <label class="field"><span>Final Album Reward (Energy)</span>${num('finalEnergy', d.finalEnergy, 'min="0" step="50"')}</label>
           <label class="field"><span>Prestige on</span>${chk('prestigeOn', d.prestigeOn)}</label>
           <label class="field"><span>Prestige Album Reward (Energy)</span>${num('prestigeEnergy', d.prestigeEnergy, 'min="0" step="50"')}</label>
@@ -774,6 +774,13 @@ if (typeof module !== 'undefined') module.exports = CA;
         <p class="muted" style="font-size:12.5px">"Gives a pack" and the pack mix are KAN-170's Order → Card Pack table. "Share of Orders" is how often each Order size comes up in the prototype; KAN-170 doesn't set it yet.</p>
       </div></fieldset>
 
+      <fieldset><legend>Event Packs / 40 Days</legend><div class="fields">
+        <div class="tablewrap"><table class="mini"><thead><tr><th>Starter</th><th>Common</th><th>Uncommon</th><th>Rare</th><th>Epic</th><th>Total</th></tr></thead><tbody>
+          <tr>${d.liveOpsPacks.map((v, t) => `<td>${num(`liveOpsPacks.${t}`, v, 'min="0" max="999"')}</td>`).join('')}<td class="sum" data-sum="eventtotal"></td></tr>
+        </tbody></table></div>
+        <p class="muted" style="font-size:12.5px">Proposed supplemental progression. Current baseline: 80 Event Packs over the 40-day Album.</p>
+      </div></fieldset>
+
       <div class="panel stack" style="gap:10px">
         <div class="sidehead" style="margin:0"><h2>Sets and cards</h2><div class="row"><button class="btn small" data-sa="openall">Open all</button><button class="btn small" data-sa="closeall">Close all</button></div></div>
         <p class="muted" style="font-size:13px">Name each Set and card, and set each card's rarity and whether it's Dazzling. Set order matters: later Sets usually hold the rarer cards.</p>
@@ -802,6 +809,7 @@ if (typeof module !== 'undefined') module.exports = CA;
     cnt.forEach((n, i) => set('r' + i, n)); set('rall', cnt.reduce((a, b) => a + b, 0));
     dz.forEach((n, i) => set('dz' + i, n)); set('dzall', dz.reduce((a, b) => a + b, 0));
     d.packs.forEach((p, t) => { const s = p.odds.reduce((a, b) => a + b, 0); set('odds' + t, fmt(s, 1) + '%', Math.abs(s - 100) > 0.01); });
+    set('eventtotal', d.liveOpsPacks.reduce((a, b) => a + (+b || 0), 0));
     const tag = $('#sp-dirty'); if (tag) { tag.textContent = S.dirty ? 'Unsaved changes' : 'No unsaved changes'; tag.classList.toggle('pity', S.dirty); }
     const sv = document.querySelector('[data-sa="save"]'); if (sv) sv.disabled = !S.dirty || S.readOnly;
     const ds = document.querySelector('[data-sa="discard"]'); if (ds) ds.disabled = !S.dirty;
@@ -937,7 +945,7 @@ function cardHTML(c, owned, dup) {
     const rng = CA.mulberry32((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
     const prev = G;
     G = { c, album, rng, st: CA.newState(album), stats: CA.newStats(), day: 0, energy: 0, coins: 0, orders: [], orderSeq: 0,
-      ordersDone: 0, orderPacks: 0, jokers: [], jokerSeq: 0,
+      ordersDone: 0, orderPacks: 0, eventPacks: 0, jokers: [], jokerSeq: 0,
       live: CA.liveScheduleFor(c, rng), jokerDays: CA.spreadDays(c.jokersPerAlbum, c.durationDays, 0.5),
       ended: false, ov: null, queue: [], albumNo: prev ? prev.albumNo + 1 : 1, log: [],
       board: makeBoard(rng), seen: new Uint8Array(album.N), fresh: new Uint8Array(album.N), pop: new Set(),
@@ -971,10 +979,17 @@ function cardHTML(c, owned, dup) {
     if (d >= D) { endAlbum(); return false; }
     const exp = G.jokers.filter(j => j.exp <= d);
     if (exp.length) { G.jokers = G.jokers.filter(j => j.exp > d); log('An unused Joker expired.'); }
-    const daily = c.profiles[1].energy;
+    const daily = c.profiles[2].energy;
     G.energy += daily; G.day = d + 1;
     if (!first) toast(`Day ${G.day} · +${fmt(daily)} Energy`);
     log(`Day ${G.day} began.`);
+    const todayEvents = G.live.filter(x => x.day === d);
+    for (const it of todayEvents) {
+      G.eventPacks++;
+      G.stats.src.live++;
+      givePack({ tier: it.tier, kind: 'standard' }, 'Event reward');
+      log(`Event reward → ${CA.PACK_NAMES[it.tier - 1]} pack.`);
+    }
     G.jokerDays.forEach(x => { if (x === d) { G.jokers.push({ id: ++G.jokerSeq, exp: d + c.jokerDays }); toast('You got a Joker! Use it on the Album tab'); log('Joker received (use it on the Album tab before the day ends).'); } });
     return true;
   }
@@ -982,7 +997,7 @@ function cardHTML(c, owned, dup) {
     const st = G.st;
     if (st.finalPending) { CA.claimFinal(st, G.c, G.stats); takeEnergy(); }
     const dups = st.dup.reduce((a, b) => a + b, 0);
-    G.summary = { cards: st.cycle ? G.album.N : st.unique, sets: st.cycle ? G.album.S : st.setsDone, orders: G.ordersDone, orderPacks: G.orderPacks, dups };
+    G.summary = { cards: st.cycle ? G.album.N : st.unique, sets: st.cycle ? G.album.S : st.setsDone, orders: G.ordersDone, orderPacks: G.orderPacks, eventPacks: G.eventPacks, totalPacks: G.orderPacks + G.eventPacks, dups };
     st.dup.fill(0); st.credit = 0; G.jokers = [];
     G.ended = true; G.queue = []; G.ov = { type: 'end' };
     log(`Album ended. ${dups} stored duplicates removed.`);
@@ -1032,7 +1047,7 @@ function cardHTML(c, owned, dup) {
     G.coins += o.coins; G.ordersDone++;
     G.orders[i] = makeOrder();
     log(`Order #${G.ordersDone} (${o.energy} Energy) → ${o.tier ? CA.PACK_NAMES[o.tier - 1] + ' pack' : 'no card pack'}.`);
-    if (o.tier) { G.orderPacks++; givePack({ tier: o.tier, kind: 'standard' }, 'Order reward'); }
+    if (o.tier) { G.orderPacks++; G.stats.src.orders++; givePack({ tier: o.tier, kind: 'standard' }, 'Order reward'); }
     if (!quick) {
       const el = document.querySelector(`.ocard[data-id="${id}"]`);
       if (el) { el.classList.add('done'); setTimeout(render, 240); return true; }
@@ -1086,7 +1101,7 @@ function cardHTML(c, owned, dup) {
     const newN = countNew();
     $('#g-nav').innerHTML = `
       <button class="navbtn" data-g="toalbum">${I.cards}<span class="lbl">Album<small>${uniq}/${G.album.N} · ${st.setsDone}/${G.album.S} Sets</small></span>${newN ? `<span class="badge">${newN > 99 ? '99+' : newN}</span>` : ''}</button>
-      <button class="navbtn" data-g="sleep" ${G.ended ? 'disabled' : ''}>${I.moon}<span class="lbl">Next day<small>${G.day >= D ? 'ends the album' : '+' + fmt(G.c.profiles[1].energy) + ' Energy'}</small></span></button>`;
+      <button class="navbtn" data-g="sleep" ${G.ended ? 'disabled' : ''}>${I.moon}<span class="lbl">Next day<small>${G.day >= D ? 'ends the album' : '+' + fmt(G.c.profiles[2].energy) + ' Energy'}</small></span></button>`;
     renderOv();
   }
   function updateArrows() {
@@ -1121,7 +1136,8 @@ function cardHTML(c, owned, dup) {
       const s = G.summary;
       h = `<div class="ov dim celebrate"><p class="eyebrow" style="color:#fff;opacity:.8">Day ${G.c.durationDays} is over</p><div class="big">Album ended</div>
         <div class="summary"><div><b>${s.sets}/${G.album.S}</b><span>Sets finished</span></div><div><b>${s.cards}/${G.album.N}</b><span>Cards collected</span></div>
-        <div><b>${fmt(s.orders)}</b><span>Orders completed</span></div><div><b>${fmt(s.orderPacks)}</b><span>Packs from Orders</span></div></div>
+        <div><b>${fmt(s.orders)}</b><span>Orders completed</span></div><div><b>${fmt(s.orderPacks)}</b><span>Packs from Orders</span></div>
+        <div><b>${fmt(s.eventPacks)}</b><span>Packs from Events</span></div><div><b>${fmt(s.totalPacks)}</b><span>Total Packs</span></div></div>
         <button class="gbtn" data-g="reset">Start a new album</button></div>`;
     }
     box.innerHTML = h;
@@ -1145,7 +1161,10 @@ function cardHTML(c, owned, dup) {
       <div class="panel stack" style="gap:8px">
         <p class="muted" style="font-size:13px">Energy bought this album (the +100 button): <b class="num">${fmt(G.bought || 0)}</b></p>
         <div class="sidehead" style="margin:0"><h3>Orders so far</h3><span class="muted num">${fmt(G.ordersDone)} Orders · ${fmt(G.orderPacks)} gave a pack${G.ordersDone ? ` (${fmt(rate)}%)` : ''}</span></div>
-        <p class="muted" style="font-size:12.5px">Card packs come only from Orders. Whether an Order gives one is decided by KAN-170's Order → Card Pack table when the Order appears, so bigger Orders carry packs more often:</p>
+        <p class="muted" style="font-size:12.5px">Card packs come from Orders plus the configured Event reward schedule. Order packs use KAN-170's Order → Card Pack table, while Event Packs are distributed across the 40-day Album.</p>
+        <p class="eyebrow" style="margin-top:4px">Event Packs</p>
+        <p class="muted" style="font-size:12.5px">${fmt(G.eventPacks)} received so far · ${fmt(G.c.liveOpsPacks.reduce((a,b)=>a+b,0))} configured total (${G.c.liveOpsPacks.join(' / ')} by tier)</p>
+        <p class="eyebrow" style="margin-top:4px">Order Pack Chance</p>
         <table class="oddsmini"><tbody>
           ${G.c.orderBands.map((b, i) => `<tr><td>${i === G.c.orderBands.length - 1 ? b.lo + '+' : b.lo + '–' + b.hi} Energy</td><td>${b.chance ? b.chance + '% of these Orders' : 'never'}</td></tr>`).join('')}
         </tbody></table>
