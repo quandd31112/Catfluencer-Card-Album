@@ -1,20 +1,11 @@
 # Catfluencer Card Album Prototype
 
-Updated to the current KAN-170 tuning baseline:
+This build keeps the **Spec tab**, but it is **read-only**.
 
-- 40-day Album
-- High-engagement prototype: 1,500 Energy/day
-- Rare odds: 40 / 38 / 15 / 7 / 0
-- Epic odds: 37 / 12 / 17 / 29 / 5
-- Pity: 8 / 24 / 3 / 2 / 1
-- Updated Order → Card Pack rates
-- 80 Event Packs / 40 days: 16 Starter / 18 Common / 18 Uncommon / 17 Rare / 11 Epic
-- 10,000-player Monte Carlo default
-
-## Run
-1. Open this folder in VS Code.
-2. Install **Live Server**.
-3. Open `index.html`.
-4. Click **Go Live**.
-
-The prototype now grants scheduled Event Packs during play in addition to Order Packs.
+- All Album tuning comes from the hard-coded `CA.defaults()` data in `app.js`.
+- The Spec tab is only for reviewing the current values.
+- No Save / Copy / Paste / Import controls.
+- No Album spec is loaded from or saved to `localStorage`.
+- Every account/browser sees the same deployed Album configuration.
+- Debug preferences and the last-opened tab may still be stored locally; they do not change the Album spec.
+- Existing `img/` assets can remain unchanged.

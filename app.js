@@ -571,302 +571,130 @@ const CA = (() => {
 if (typeof module !== 'undefined') module.exports = CA;
 
 
-/* ===== Script 2: spec (Spec tab editor; saves in this browser) ===== */
+/* ===== Hard-coded configuration only: CA.defaults() is the single source of truth. ===== */
+
+
+/* ===== Script 2: read-only spec viewer (hard-coded CA.defaults only) ===== */
 (() => {
   const $ = s => document.querySelector(s);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (v, d = 0) => (v === null || v === undefined || !isFinite(v)) ? '–' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-  const clone = o => JSON.parse(JSON.stringify(o));
-  const LS = 'caLab.spec.catfluencerLife.v2';
-  const DOC = 'spec/current';
-  const GH_RARITY = [37, 29, 28, 23, 18];
-
-  function base() {
-    const c = CA.defaults();
-    if (!c.albumDef) c.albumDef = CA.albumDefFrom(c);
-    c.notes = c.notes || '';
-    return c;
-  }
-  // Merge a saved spec onto the current defaults so older saves keep working.
-  function normalize(saved) {
-    const b = base();
-    if (!saved || typeof saved !== 'object') return b;
-    for (const k in b) {
-      if (saved[k] === undefined) continue;
-      if (Array.isArray(b[k]) !== Array.isArray(saved[k])) continue;
-      if (typeof b[k] !== typeof saved[k] && b[k] !== null) continue;
-      b[k] = saved[k];
-    }
-    if (saved.albumDef && Array.isArray(saved.albumDef.sets)) b.albumDef = saved.albumDef;
-    return b;
-  }
-  const store = {
-    get() { try { return JSON.parse(localStorage.getItem(LS)); } catch (e) { return null; } },
-    set(v) { try { localStorage.setItem(LS, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
-  };
-
-  // Use the hard-coded spec from CA.defaults() as the source of truth.
-  // Ignore any older spec saved in this browser so every viewer gets the same data from the file.
-  const local = null;
-  const S = {
-    active: base(), stamp: 'default',
-    savedAt: null, savedBy: null, mode: 'local', db: null, user: null, uid: null,
-    canWrite: null, readOnly: false, draft: null, dirty: false, remoteNewer: null, msg: '', open: new Set([0])
-  };
-  S.draft = clone(S.active);
-
-  window.SpecStore = {
-    activeCopy: () => clone(S.active),
-    stamp: () => S.stamp,
-    info: () => ({ mode: S.mode, savedAt: S.savedAt })
-  };
-
-  function notifyApp() { if (window.AlbumApp) window.AlbumApp.specChanged(); }
-
-  /* ---------------- shared saving (artifact db) ---------------- */
-  (async () => {
-    const cl = window.claude;
-    if (!cl || typeof cl.use !== 'function') return;
-    let db = null, user = null;
-    try { db = await cl.use('db'); } catch (e) { db = null; }
-    if (!db) return;
-    try { user = await cl.use('user'); } catch (e) { user = null; }
-    S.db = db; S.user = user; S.mode = 'shared';
-    if (user) {
-      try { S.uid = await user.id(); } catch (e) { S.uid = null; }
-      try { S.canWrite = await user.can('data.write'); } catch (e) { S.canWrite = null; }
-    }
-    if (S.canWrite === false) S.readOnly = true;
-    render();
-    db.doc(DOC).onSnapshot(snap => {
-      if (!snap.exists) { render(); return; }
-      const d = snap.data() || {};
-      if (d.savedAt === S.savedAt && S.stamp.startsWith('db-')) return;
-      let spec = null;
-      try { spec = normalize(JSON.parse(d.json)); } catch (e) { return; }
-      S.active = spec; S.savedAt = d.savedAt; S.savedBy = d.savedBy || null; S.stamp = 'db-' + d.savedAt;
-      if (S.dirty) S.remoteNewer = { spec, savedBy: d.savedBy || null };
-      else S.draft = clone(spec);
-      render(); notifyApp();
-    }, () => { /* keep working from the last known spec */ });
-  })();
-
-  async function nameFor(id) {
-    if (!id || !S.user || !S.user.profiles) return '';
-    try { const ps = await S.user.profiles([id]); return (ps && ps[id] && ps[id].name) || ''; } catch (e) { return ''; }
-  }
-
-  async function save() {
-    const savedAt = Date.now();
-    const spec = clone(S.draft);
-    if (S.db && !S.readOnly) {
-      try {
-        await S.db.doc(DOC).set({ json: JSON.stringify(spec), savedAt, savedBy: S.uid || null });
-        S.active = spec; S.savedAt = savedAt; S.savedBy = S.uid; S.stamp = 'db-' + savedAt;
-        S.dirty = false; S.remoteNewer = null; S.msg = 'Saved for everyone.';
-      } catch (e) {
-        if (e && (e.code === 'invalid_argument' || e.code === 'not_granted')) {
-          S.readOnly = true; S.msg = 'You can view this spec but not save it. The owner needs to invite you as an Editor.';
-        } else if (e && e.code === 'unavailable') {
-          S.msg = 'Saving failed for a moment. Try Save again.';
-        } else S.msg = 'Saving failed: ' + ((e && e.message) || 'unknown error') + '.';
-        render(); return;
-      }
-    } else {
-      // Local mode: apply edits only for this page session. Do not persist spec to localStorage.
-      S.active = spec; S.savedAt = savedAt; S.stamp = 'session-' + savedAt; S.dirty = false;
-      S.msg = 'Applied for this session. Reloading the page restores the hard-coded spec from app.js.';
-    }
-    render(); notifyApp();
-  }
-
-  /* ---------------- editor ---------------- */
-  const num = (path, v, attrs = '') => `<input type="number" data-sp="${path}" value="${v}" ${attrs} aria-label="${path}">`;
-  const txt = (path, v, attrs = '') => `<input type="text" data-sp="${path}" value="${esc(v)}" ${attrs} aria-label="${path}">`;
-  const chk = (path, v) => `<input type="checkbox" data-sp="${path}" ${v ? 'checked' : ''} aria-label="${path}">`;
-  const sel = (path, v, opts) => `<select data-sp="${path}" data-num="1" aria-label="${path}">${opts.map(([a, l]) => `<option value="${a}" ${String(a) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-  const R5 = [1, 2, 3, 4, 5].map(r => [r, r + '★']);
-  const TIERS = CA.PACK_NAMES.map((n, i) => [i + 1, `${i + 1}★ ${n}`]);
-
-  function setSummary(sd) {
-    const cnt = [0, 0, 0, 0, 0]; let dz = 0;
-    sd.cards.forEach(c => { cnt[(c.r || 1) - 1]++; if (c.dazz) dz++; });
-    return `${sd.cards.length} cards · ${cnt.map((n, i) => n ? `${n}×${i + 1}★` : '').filter(Boolean).join(' ')}${dz ? ` · ${dz} Dazzling` : ''} · ${fmt(sd.reward)} Energy`;
-  }
 
   function render() {
-    const host = $('#tab-spec'); if (!host || host.hidden) return;
-    const d = S.draft, ad = d.albumDef;
-    const when = S.savedAt ? new Date(S.savedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
-    const status = S.mode === 'shared'
-      ? (when ? `Shared spec · last saved ${when}<span id="sp-by"></span>` : 'Shared spec · nothing saved yet, so everyone is playing the KAN-170 defaults')
-      : (when ? `Saved in this browser ${when}` : 'Using the KAN-170 defaults');
-    const setsHTML = ad.sets.map((sd, si) => `
-      <details class="spset" data-si="${si}" ${S.open.has(si) ? 'open' : ''}>
-        <summary><b>${si + 1}. <span data-sum="sname${si}">${esc(sd.name)}</span></b><span class="muted" data-sum="set${si}">${setSummary(sd)}</span></summary>
-        <div class="spsetbody">
-          <div class="row"><label class="inline" style="flex:1;min-width:200px">Set name ${txt(`albumDef.sets.${si}.name`, sd.name, 'style="flex:1"')}</label>
-            <label class="inline">Set reward (Energy) ${num(`albumDef.sets.${si}.reward`, sd.reward, 'min="0" step="10"')}</label></div>
-          <div class="tablewrap"><table class="mini sptable"><thead><tr><th>#</th><th style="text-align:left">Card name</th><th>Rarity</th><th>Dazzling</th></tr></thead><tbody>
-            ${sd.cards.map((c, ci) => `<tr><td>${ci + 1}</td><td>${txt(`albumDef.sets.${si}.cards.${ci}.name`, c.name, 'class="cname-in"')}</td><td>${sel(`albumDef.sets.${si}.cards.${ci}.r`, c.r, R5)}</td><td>${chk(`albumDef.sets.${si}.cards.${ci}.dazz`, c.dazz)}</td></tr>`).join('')}
-          </tbody></table></div>
-        </div>
-      </details>`).join('');
+    const host = $('#tab-spec');
+    if (!host || host.hidden) return;
+
+    const d = CA.defaults();
+    const ad = d.albumDef || CA.albumDefFrom(d);
+
+    const rows = ad.sets.map((sd, si) => {
+      const counts = [0,0,0,0,0];
+      let dazzling = 0;
+      sd.cards.forEach(c => {
+        counts[(c.r || 1) - 1]++;
+        if (c.dazz) dazzling++;
+      });
+
+      const cards = sd.cards.map((c, ci) => `
+        <tr>
+          <td>${ci + 1}</td>
+          <td style="text-align:left">${esc(c.name)}</td>
+          <td>${c.r}★</td>
+          <td>${c.dazz ? 'Yes' : '—'}</td>
+        </tr>`).join('');
+
+      return `
+        <details class="spset" ${si === 0 ? 'open' : ''}>
+          <summary>
+            <b>${si + 1}. ${esc(sd.name)}</b>
+            <span class="muted">
+              ${sd.cards.length} cards ·
+              ${counts.map((n, i) => n ? `${n}×${i+1}★` : '').filter(Boolean).join(' ')}
+              ${dazzling ? ` · ${dazzling} Dazzling` : ''}
+              · ${fmt(sd.reward)} Energy
+            </span>
+          </summary>
+          <div class="spsetbody">
+            <div class="tablewrap">
+              <table class="mini sptable">
+                <thead><tr><th>#</th><th style="text-align:left">Card name</th><th>Rarity</th><th>Dazzling</th></tr></thead>
+                <tbody>${cards}</tbody>
+              </table>
+            </div>
+          </div>
+        </details>`;
+    }).join('');
 
     host.innerHTML = `
-      <div class="panel stack specbar" style="gap:10px">
-        <div class="row" style="justify-content:space-between;align-items:flex-start">
-          <div class="stack" style="gap:4px;min-width:0">
-            <h2>Album spec</h2>
-            <p class="ink2" style="font-size:14px">${status}</p>
-          </div>
-          <div class="row">
-            <span class="tag ${S.dirty ? 'pity' : ''}" id="sp-dirty">${S.dirty ? 'Unsaved changes' : 'No unsaved changes'}</span>
-            <button class="btn" data-sa="discard" ${S.dirty ? '' : 'disabled'}>Discard changes</button>
-            <button class="btn primary" data-sa="save" ${S.dirty && !S.readOnly ? '' : 'disabled'}>${S.mode === 'shared' ? 'Save for everyone' : 'Save'}</button>
-          </div>
+      <div class="panel stack specbar" style="gap:8px">
+        <div>
+          <h2>Album spec</h2>
+          <p class="ink2" style="font-size:14px;margin-top:4px">
+            Read-only hard-coded configuration. Everyone sees the same values from <code>CA.defaults()</code>.
+          </p>
         </div>
-        ${S.readOnly ? `<div class="banner warn"><p>You can view this spec but not save it. The owner needs to invite you as an <b>Editor</b> from the Share menu. You can still use Copy spec below.</p></div>` : ''}
-        ${S.remoteNewer ? `<div class="banner accent"><p><b>Someone saved a newer version</b> while you were editing.</p><div class="row"><button class="btn small" data-sa="loadremote">Load it (drops your edits)</button><button class="btn small" data-sa="keepmine">Keep editing mine</button></div></div>` : ''}
-        ${S.msg ? `<p class="muted" role="status" style="font-size:13.5px">${esc(S.msg)}</p>` : ''}
-        <p class="muted" style="font-size:13px">Edit anything below, then save. The Orders and Album tabs play the saved spec: reset the album there to start playing a newly saved version.</p>
-      </div>
-
-      <div class="panel stack" style="gap:8px">
-        <h3>Change notes</h3>
-        <textarea data-sp="notes" rows="3" placeholder="What changed in this version and why" style="font-family:var(--f-body);font-size:14px">${esc(d.notes || '')}</textarea>
       </div>
 
       <div class="sgrid">
-        <fieldset><legend>Album</legend><div class="fields">
-          <label class="field"><span>Album name</span>${txt('albumDef.name', ad.name || 'Card Album', 'style="width:200px"')}</label>
-          <label class="field"><span>Album length (days)</span>${num('durationDays', d.durationDays, 'min="1" max="120"')}</label>
-          <label class="field"><span>Energy per day (prototype)</span>${num('profiles.2.energy', d.profiles[2].energy, 'min="0" step="25"')}</label>
-          <label class="field"><span>Final Album Reward (Energy)</span>${num('finalEnergy', d.finalEnergy, 'min="0" step="50"')}</label>
-          <label class="field"><span>Prestige on</span>${chk('prestigeOn', d.prestigeOn)}</label>
-          <label class="field"><span>Prestige Album Reward (Energy)</span>${num('prestigeEnergy', d.prestigeEnergy, 'min="0" step="50"')}</label>
-          <label class="field"><span>Free Jokers per album</span>${num('jokersPerAlbum', d.jokersPerAlbum, 'min="0" max="40"')}</label>
-          <label class="field"><span>Joker can pick up to</span>${sel('jokerMaxRarity', d.jokerMaxRarity, R5)}</label>
-          <div class="tablewrap"><table class="mini"><thead><tr><th>Totals</th><th>1★</th><th>2★</th><th>3★</th><th>4★</th><th>5★</th><th>All</th></tr></thead><tbody>
-            <tr><td>Cards in this spec</td>${[0, 1, 2, 3, 4].map(i => `<td class="sum" data-sum="r${i}"></td>`).join('')}<td class="sum" data-sum="rall"></td></tr>
-            <tr><td>Gossip Harbor</td>${GH_RARITY.map(n => `<td>${n}</td>`).join('')}<td>135</td></tr>
-            <tr><td>Dazzling cards</td>${[0, 1, 2, 3, 4].map(i => `<td class="sum" data-sum="dz${i}"></td>`).join('')}<td class="sum" data-sum="dzall"></td></tr>
-            <tr><td>Dazzling reward (Energy)</td>${d.dazzlingReward.map((v, i) => `<td>${num(`dazzlingReward.${i}`, v, 'min="0" step="5"')}</td>`).join('')}<td></td></tr>
-          </tbody></table></div>
-        </div></fieldset>
+        <fieldset>
+          <legend>Album</legend>
+          <div class="fields">
+            <div class="field"><span>Album name</span><b>${esc(ad.name || 'Card Album')}</b></div>
+            <div class="field"><span>Album length</span><b>${fmt(d.durationDays)} days</b></div>
+            <div class="field"><span>Low profile</span><b>${fmt(d.profiles[0].energy)} Energy/day</b></div>
+            <div class="field"><span>Medium profile</span><b>${fmt(d.profiles[1].energy)} Energy/day</b></div>
+            <div class="field"><span>High profile</span><b>${fmt(d.profiles[2].energy)} Energy/day</b></div>
+            <div class="field"><span>Final Album Reward</span><b>${fmt(d.finalEnergy)} Energy</b></div>
+            <div class="field"><span>Prestige</span><b>${d.prestigeOn ? 'On' : 'Off'}</b></div>
+            <div class="field"><span>Prestige Reward</span><b>${fmt(d.prestigeEnergy)} Energy</b></div>
+            <div class="field"><span>Free Jokers</span><b>${fmt(d.jokersPerAlbum)}</b></div>
+          </div>
+        </fieldset>
 
-        <div class="stack">
-          <fieldset><legend>Card packs</legend><div class="fields">
-            <div class="tablewrap"><table class="mini"><thead><tr><th>Pack</th><th>Cards</th><th>1★%</th><th>2★%</th><th>3★%</th><th>4★%</th><th>5★%</th><th>Sum</th></tr></thead><tbody>
-              ${d.packs.map((p, t) => `<tr><td>${t + 1}★ ${CA.PACK_NAMES[t]}</td><td>${num(`packs.${t}.cards`, p.cards, 'min="1" max="12"')}</td>${p.odds.map((v, k) => `<td>${num(`packs.${t}.odds.${k}`, v, 'min="0" max="100" step="0.5"')}</td>`).join('')}<td class="sum" data-sum="odds${t}"></td></tr>`).join('')}
-            </tbody></table></div>
-            <p class="muted" style="font-size:12.5px">Card counts start at the Gossip Harbor observations (2 / 3 / 3 / 4 / 4). The first card in each pack is guaranteed to be at least the pack's star rating.</p>
-          </div></fieldset>
-          <fieldset><legend>Pity and Star Store</legend><div class="fields">
-            <label class="field"><span>Pity on</span>${chk('pityOn', d.pityOn)}</label>
-            <div class="tablewrap"><table class="mini"><thead><tr><th>Duplicates in a row</th><th>1★</th><th>2★</th><th>3★</th><th>4★</th><th>5★</th></tr></thead><tbody><tr><td>Pity threshold</td>${d.pity.map((v, i) => `<td>${num(`pity.${i}`, v, 'min="0" max="99"')}</td>`).join('')}</tr></tbody></table></div>
-            <div class="tablewrap"><table class="mini"><thead><tr><th>Star Box</th><th>Cost ★</th><th>Pack</th><th>Energy</th></tr></thead><tbody>
-              ${[0, 1, 2].map(b => `<tr><td>Box ${b + 1}</td><td>${num(`starCosts.${b}`, d.starCosts[b], 'min="1" step="10"')}</td><td>${sel(`starBoxPack.${b}`, d.starBoxPack[b], TIERS)}</td><td>${num(`starBoxEnergy.${b}`, d.starBoxEnergy[b], 'min="0" step="10"')}</td></tr>`).join('')}
-            </tbody></table></div>
-          </div></fieldset>
+        <fieldset>
+          <legend>Card packs</legend>
+          <div class="tablewrap">
+            <table class="mini">
+              <thead><tr><th>Pack</th><th>Cards</th><th>1★%</th><th>2★%</th><th>3★%</th><th>4★%</th><th>5★%</th></tr></thead>
+              <tbody>
+                ${d.packs.map((p,t) => `<tr><td>${t+1}★ ${CA.PACK_NAMES[t]}</td><td>${p.cards}</td>${p.odds.map(v => `<td>${v}</td>`).join('')}</tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </fieldset>
+      </div>
+
+      <fieldset>
+        <legend>Which Orders give a card pack</legend>
+        <div class="tablewrap">
+          <table class="mini">
+            <thead><tr><th>Order Energy</th><th>Share</th><th>Pack chance</th><th>Starter</th><th>Common</th><th>Uncommon</th><th>Rare</th><th>Epic</th></tr></thead>
+            <tbody>
+              ${d.orderBands.map((b, i) => `<tr>
+                <td>${i === d.orderBands.length - 1 ? b.lo + '+' : b.lo + '–' + b.hi}</td>
+                <td>${b.share}%</td><td>${b.chance}%</td>${b.mix.map(v => `<td>${v}%</td>`).join('')}
+              </tr>`).join('')}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </fieldset>
 
-      <fieldset><legend>Which Orders give a card pack</legend><div class="fields">
-        <div class="tablewrap"><table class="mini"><thead><tr><th>Order Energy</th><th>Share of Orders</th><th>Gives a pack</th><th>Starter</th><th>Common</th><th>Uncommon</th><th>Rare</th><th>Epic</th></tr></thead><tbody>
-          ${d.orderBands.map((b, i) => `<tr><td>${i === d.orderBands.length - 1 ? b.lo + '+' : b.lo + '–' + b.hi}</td><td>${num(`orderBands.${i}.share`, b.share, 'min="0" max="100" step="0.1"')}%</td><td>${num(`orderBands.${i}.chance`, b.chance, 'min="0" max="100"')}%</td>${b.mix.map((v, t) => `<td>${num(`orderBands.${i}.mix.${t}`, v, 'min="0" max="100"')}%</td>`).join('')}</tr>`).join('')}
-        </tbody></table></div>
-        <p class="muted" style="font-size:12.5px">"Gives a pack" and the pack mix are KAN-170's Order → Card Pack table. "Share of Orders" is how often each Order size comes up in the prototype; KAN-170 doesn't set it yet.</p>
-      </div></fieldset>
-
-      <fieldset><legend>Event Packs / 40 Days</legend><div class="fields">
-        <div class="tablewrap"><table class="mini"><thead><tr><th>Starter</th><th>Common</th><th>Uncommon</th><th>Rare</th><th>Epic</th><th>Total</th></tr></thead><tbody>
-          <tr>${d.liveOpsPacks.map((v, t) => `<td>${num(`liveOpsPacks.${t}`, v, 'min="0" max="999"')}</td>`).join('')}<td class="sum" data-sum="eventtotal"></td></tr>
-        </tbody></table></div>
-        <p class="muted" style="font-size:12.5px">Proposed supplemental progression. Current baseline: 80 Event Packs over the 40-day Album.</p>
-      </div></fieldset>
+      <fieldset>
+        <legend>Event Packs / ${fmt(d.durationDays)} Days</legend>
+        <div class="tablewrap">
+          <table class="mini">
+            <thead><tr><th>Starter</th><th>Common</th><th>Uncommon</th><th>Rare</th><th>Epic</th><th>Total</th></tr></thead>
+            <tbody><tr>${d.liveOpsPacks.map(v => `<td>${v}</td>`).join('')}<td><b>${d.liveOpsPacks.reduce((a,b)=>a+b,0)}</b></td></tr></tbody>
+          </table>
+        </div>
+      </fieldset>
 
       <div class="panel stack" style="gap:10px">
-        <div class="sidehead" style="margin:0"><h2>Sets and cards</h2><div class="row"><button class="btn small" data-sa="openall">Open all</button><button class="btn small" data-sa="closeall">Close all</button></div></div>
-        <p class="muted" style="font-size:13px">Name each Set and card, and set each card's rarity and whether it's Dazzling. Set order matters: later Sets usually hold the rarer cards.</p>
-        <div class="stack" style="gap:8px">${setsHTML}</div>
-      </div>
-
-      <div class="panel stack" style="gap:10px">
-        <h3>Copy, paste and reset</h3>
-        <p class="muted" style="font-size:13px">Copy spec gives you the whole spec as text, to send in a message or keep as a backup. Paste text from someone else and load it to edit it here.</p>
-        <div class="row"><button class="btn" data-sa="copy">Copy spec</button><button class="btn" data-sa="defaults">Reset editor to KAN-170 values</button></div>
-        <textarea id="sp-paste" spellcheck="false" placeholder="Paste spec text here"></textarea>
-        <div class="row"><button class="btn" data-sa="load">Load pasted spec into the editor</button><span class="muted" id="sp-msg2" role="status"></span></div>
+        <h2>Sets and cards</h2>
+        <p class="muted" style="font-size:13px">These values are display-only. To change them, update the hard-coded data in <code>CA.defaults()</code> and redeploy.</p>
+        <div class="stack" style="gap:8px">${rows}</div>
       </div>`;
-    updateSums();
-    if (S.savedBy) nameFor(S.savedBy).then(n => { const el = $('#sp-by'); if (el && n) el.textContent = ' by ' + n; });
   }
-
-  function updateSums() {
-    const d = S.draft;
-    const set = (k, v, bad) => { const el = document.querySelector(`[data-sum="${k}"]`); if (el) { el.textContent = v; el.classList.toggle('bad', !!bad); } };
-    const cnt = [0, 0, 0, 0, 0], dz = [0, 0, 0, 0, 0];
-    d.albumDef.sets.forEach((sd, si) => {
-      sd.cards.forEach(c => { cnt[(c.r || 1) - 1]++; if (c.dazz) dz[(c.r || 1) - 1]++; });
-      set('set' + si, setSummary(sd)); set('sname' + si, sd.name);
-    });
-    cnt.forEach((n, i) => set('r' + i, n)); set('rall', cnt.reduce((a, b) => a + b, 0));
-    dz.forEach((n, i) => set('dz' + i, n)); set('dzall', dz.reduce((a, b) => a + b, 0));
-    d.packs.forEach((p, t) => { const s = p.odds.reduce((a, b) => a + b, 0); set('odds' + t, fmt(s, 1) + '%', Math.abs(s - 100) > 0.01); });
-    set('eventtotal', d.liveOpsPacks.reduce((a, b) => a + (+b || 0), 0));
-    const tag = $('#sp-dirty'); if (tag) { tag.textContent = S.dirty ? 'Unsaved changes' : 'No unsaved changes'; tag.classList.toggle('pity', S.dirty); }
-    const sv = document.querySelector('[data-sa="save"]'); if (sv) sv.disabled = !S.dirty || S.readOnly;
-    const ds = document.querySelector('[data-sa="discard"]'); if (ds) ds.disabled = !S.dirty;
-  }
-
-  function setPath(obj, path, val) {
-    const ks = path.split('.'); let o = obj;
-    for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]];
-    o[ks[ks.length - 1]] = val;
-  }
-
-  const host = $('#tab-spec');
-  host.addEventListener('change', e => {
-    const t = e.target, path = t.dataset.sp; if (!path) return;
-    let v;
-    if (t.type === 'checkbox') v = t.checked;
-    else if (t.type === 'number' || t.dataset.num) { v = parseFloat(t.value); if (!isFinite(v)) v = 0; if (t.min !== '' && v < +t.min) v = +t.min; if (t.max !== '' && v > +t.max) v = +t.max; t.value = v; }
-    else v = t.value;
-    setPath(S.draft, path, v);
-    S.dirty = true; S.msg = '';
-    updateSums();
-  });
-  host.addEventListener('toggle', e => {
-    const dt = e.target.closest && e.target.closest('details.spset'); if (!dt) return;
-    const si = +dt.dataset.si; if (dt.open) S.open.add(si); else S.open.delete(si);
-  }, true);
-  host.addEventListener('click', e => {
-    const b = e.target.closest('[data-sa]'); if (!b || b.disabled) return;
-    const a = b.dataset.sa;
-    if (a === 'save') return void save();
-    if (a === 'discard') { S.draft = clone(S.active); S.dirty = false; S.msg = 'Changes discarded.'; }
-    if (a === 'loadremote') { S.draft = clone(S.remoteNewer.spec); S.dirty = false; S.remoteNewer = null; }
-    if (a === 'keepmine') { S.remoteNewer = null; }
-    if (a === 'openall') S.draft.albumDef.sets.forEach((_, i) => S.open.add(i));
-    if (a === 'closeall') S.open.clear();
-    if (a === 'defaults') { S.draft = base(); S.dirty = true; S.msg = 'Editor reset to the KAN-170 values. Save to apply.'; }
-    if (a === 'copy') {
-      const text = JSON.stringify(S.draft);
-      const ta = $('#sp-paste');
-      const fallback = () => { ta.value = text; ta.focus(); ta.select(); $('#sp-msg2').textContent = 'Copying is blocked here. The spec text is selected in the box, so copy it from there.'; };
-      try { navigator.clipboard.writeText(text).then(() => { $('#sp-msg2').textContent = 'Spec copied.'; }, fallback); } catch (err) { fallback(); }
-      return;
-    }
-    if (a === 'load') {
-      try {
-        const obj = JSON.parse($('#sp-paste').value);
-        if (!obj || typeof obj !== 'object' || !obj.albumDef) throw new Error('no album');
-        S.draft = normalize(obj); S.dirty = true; S.msg = 'Pasted spec loaded into the editor. Save to apply it.';
-      } catch (err) { $('#sp-msg2').textContent = "That text isn't a complete spec. Paste the full text from Copy spec."; return; }
-    }
-    render();
-  });
 
   window.SpecTab = { render };
 })();
@@ -945,7 +773,7 @@ function cardHTML(c, owned, dup) {
   let G = null;
   const savedPrefs = store.get('caLab.debug') || {};
   function newGame() {
-    const c = window.SpecStore ? window.SpecStore.activeCopy() : CA.defaults();
+    const c = CA.defaults();
     const album = CA.buildAlbum(c);
     const rng = CA.mulberry32((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
     const prev = G;
@@ -955,7 +783,7 @@ function cardHTML(c, owned, dup) {
       ended: false, ov: null, queue: [], albumNo: prev ? prev.albumNo + 1 : 1, log: [],
       board: makeBoard(rng), seen: new Uint8Array(album.N), fresh: new Uint8Array(album.N), pop: new Set(),
       inf: prev ? prev.inf : !!savedPrefs.inf, skip: prev ? prev.skip : !!savedPrefs.skip,
-      specStamp: window.SpecStore ? window.SpecStore.stamp() : 'default' };
+      specStamp: 'hardcoded' };
     log(`Album ${G.albumNo} started: ${album.N} cards in ${album.S} Sets, ${c.durationDays} days${c.notes ? '. Spec notes: ' + c.notes : ''}.`);
     startDay(true);
     while (G.orders.length < ACTIVE) G.orders.push(makeOrder());
@@ -1154,9 +982,7 @@ function cardHTML(c, owned, dup) {
     }
     box.innerHTML = h;
   }
-
-  const outdated = () => window.SpecStore && window.SpecStore.stamp() !== G.specStamp;
-  const outdatedBanner = () => outdated() ? `<div class="banner accent"><p><b>A newer spec was saved.</b> This album still uses the earlier one. Reset to play the new version.</p><button class="btn small primary" data-g="reset">Reset album</button></div>` : '';
+  const outdatedBanner = () => '';
   function renderDebug() {
     const rate = G.ordersDone ? G.orderPacks / G.ordersDone * 100 : 0;
     $('#g-side').innerHTML = `${outdatedBanner()}
@@ -1320,15 +1146,6 @@ function cardHTML(c, owned, dup) {
     store.set('caLab.debug', { inf: G.inf, skip: G.skip });
     render();
   });
-
-  window.AlbumApp = {
-  specChanged() {
-    // A fresh album (nothing played yet) picks up the new spec straight away.
-    if (G && G.ordersDone === 0 && !G.ended && G.specStamp !== window.SpecStore.stamp()) newGame();
-    if (!$('#tab-orders').hidden) render();
-    else if (!$('#tab-album').hidden) renderAlbum();
-  }
-};
 
 function openCardDetail(cardElement) {
   const popup = document.getElementById('card-detail-popup');
