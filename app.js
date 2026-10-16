@@ -605,10 +605,12 @@ if (typeof module !== 'undefined') module.exports = CA;
     set(v) { try { localStorage.setItem(LS, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
   };
 
-  const local = store.get();
+  // Use the hard-coded spec from CA.defaults() as the source of truth.
+  // Ignore any older spec saved in this browser so every viewer gets the same data from the file.
+  const local = null;
   const S = {
-    active: normalize(local && local.spec), stamp: local ? 'local-' + local.savedAt : 'default',
-    savedAt: local ? local.savedAt : null, savedBy: null, mode: 'local', db: null, user: null, uid: null,
+    active: base(), stamp: 'default',
+    savedAt: null, savedBy: null, mode: 'local', db: null, user: null, uid: null,
     canWrite: null, readOnly: false, draft: null, dirty: false, remoteNewer: null, msg: '', open: new Set([0])
   };
   S.draft = clone(S.active);
@@ -671,9 +673,9 @@ if (typeof module !== 'undefined') module.exports = CA;
         render(); return;
       }
     } else {
-      store.set({ spec, savedAt });
-      S.active = spec; S.savedAt = savedAt; S.stamp = 'local-' + savedAt; S.dirty = false;
-      S.msg = 'Saved in this browser. Use Copy spec to send it to someone else.';
+      // Local mode: apply edits only for this page session. Do not persist spec to localStorage.
+      S.active = spec; S.savedAt = savedAt; S.stamp = 'session-' + savedAt; S.dirty = false;
+      S.msg = 'Applied for this session. Reloading the page restores the hard-coded spec from app.js.';
     }
     render(); notifyApp();
   }
